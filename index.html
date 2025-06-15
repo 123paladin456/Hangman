@@ -82,6 +82,7 @@
             width: 80%;
             border: 1px solid #ddd;
             border-radius: 5px;
+            pointer-events: auto; /* Убедимся, что поля доступны для ввода */
         }
         button {
             padding: 10px 20px;
@@ -112,7 +113,7 @@
         <div id="error-message"></div>
         <div id="creator-section" style="display: none;">
             <p>Введите слово и подсказку для другого игрока:</p>
-            <input id="word-input" type="text" placeholder="Введите слово (только буквы)" pattern="[а-яА-Я]+" required>
+            <input id="word-input" type="text" placeholder="Введите слово (только русские буквы)" required>
             <input id="hint-input" type="text" placeholder="Введите подсказку" required>
             <button id="start-game">Начать игру</button>
             <div id="room-link"></div>
@@ -192,7 +193,7 @@
         document.getElementById('start-game').addEventListener('click', () => {
             const wordInput = document.getElementById('word-input').value.trim().toLowerCase();
             const hintInput = document.getElementById('hint-input').value.trim();
-            if (!/^[а-я]+$/.test(wordInput)) {
+            if (!/^[а-яА-Я]+$/.test(wordInput)) { // Разрешаем заглавные и строчные буквы
                 alert('Слово должно содержать только русские буквы.');
                 return;
             }
