@@ -223,6 +223,7 @@
         if (db) {
             gamesRef.on('value', snapshot => {
                 const gameData = snapshot.val();
+                console.log('Game data:', gameData); // Для отладки
                 if (!gameData) {
                     document.getElementById('error-message').textContent = 'Данные игры не найдены.';
                     return;
@@ -234,7 +235,9 @@
                     updateWordDisplay(gameData.word, gameData.guessedLetters);
                     drawHangman(maxAttempts - gameData.attemptsLeft);
                     createKeyboard(gameData.guessedLetters);
-                    document.getElementById('keyboard').style.pointerEvents = 'auto'; // Активируем клавиатуру
+                    const keyboard = document.getElementById('keyboard');
+                    keyboard.style.pointerEvents = 'auto'; // Активируем клавиатуру
+                    console.log('Keyboard activated'); // Для отладки
                 }
 
                 if (gameData.result) {
@@ -247,6 +250,7 @@
                 }
             }, error => {
                 document.getElementById('error-message').textContent = 'Ошибка получения данных игры: ' + error.message;
+                console.error('Firebase error:', error);
             });
         }
 
@@ -267,7 +271,10 @@
                 if (guessedLetters.includes(letter)) {
                     key.className += ' disabled';
                 } else {
-                    key.addEventListener('click', () => guessLetter(letter));
+                    key.addEventListener('click', () => {
+                        console.log('Clicked:', letter); // Для отладки
+                        guessLetter(letter);
+                    });
                 }
                 keyboard.appendChild(key);
             });
@@ -293,6 +300,7 @@
                 return game;
             }).catch(error => {
                 document.getElementById('error-message').textContent = 'Ошибка при угадывании буквы: ' + error.message;
+                console.error('Transaction error:', error);
             });
         }
 
