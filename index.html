@@ -80,6 +80,10 @@
             color: red;
             margin: 10px 0;
         }
+        .disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
@@ -94,12 +98,12 @@
             <button id="start-game">Начать игру</button>
             <div id="room-link"></div>
         </div>
-        <div id="guesser-section" style="display: block;"> <!-- Теперь всегда отображается -->
+        <div id="guesser-section">
             <canvas id="hangman-canvas" width="200" height="200"></canvas>
             <div id="hint"></div>
             <div id="word-display"></div>
-            <input id="guess-input" type="text" placeholder="Введите букву" maxlength="1" style="display: none;">
-            <button id="guess-button" style="display: none;">Угадать</button>
+            <input id="guess-input" type="text" placeholder="Введите букву" maxlength="1" class="disabled">
+            <button id="guess-button" class="disabled">Угадать</button>
             <div id="result"></div>
             <button id="play-again" style="display: none;">Играть снова</button>
         </div>
@@ -128,8 +132,6 @@
             document.getElementById('error-message').textContent = 'Ошибка инициализации Firebase: ' + error.message;
             document.getElementById('status').textContent = 'Ошибка загрузки игры.';
             console.error('Ошибка инициализации Firebase:', error);
-            document.getElementById('creator-section').style.display = 'none';
-            document.getElementById('guesser-section').style.display = 'none';
         }
 
         // Настройка игры
@@ -147,7 +149,7 @@
         // Инициализация игры
         if (isCreator && db) {
             document.getElementById('creator-section').style.display = 'block';
-            document.getElementById('guesser-section').style.display = 'none'; // Скрываем угадывающего
+            document.getElementById('guesser-section').style.display = 'none';
             document.getElementById('status').textContent = 'Создайте игру, введя слово и подсказку.';
             const roomLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
             document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой с другом: <a href="${roomLink}">${roomLink}</a>`;
@@ -158,8 +160,8 @@
                 document.getElementById('error-message').textContent = 'Ошибка настройки игры: ' + error.message;
             });
         } else if (db) {
-            document.getElementById('creator-section').style.display = 'none'; // Скрываем создателя
-            document.getElementById('guesser-section').style.display = 'block'; // Показываем угадывающего
+            document.getElementById('creator-section').style.display = 'none';
+            document.getElementById('guesser-section').style.display = 'block';
             document.getElementById('status').textContent = 'Ожидание слова от создателя...';
             gamesRef.update({
                 guesser: playerId
@@ -199,6 +201,7 @@
         if (db) {
             gamesRef.on('value', snapshot => {
                 const gameData = snapshot.val();
+                console.log('Game data:', gameData); // Для отладки
                 if (!gameData) {
                     document.getElementById('error-message').textContent = 'Данные игры не найдены.';
                     return;
@@ -209,15 +212,15 @@
                     document.getElementById('hint').textContent = `Подсказка: ${gameData.hint}`;
                     updateWordDisplay(gameData.word, gameData.guessedLetters);
                     drawHangman(maxAttempts - gameData.attemptsLeft);
-                    document.getElementById('guess-input').style.display = 'block';
-                    document.getElementById('guess-button').style.display = 'block';
+                    document.getElementById('guess-input').classList.remove('disabled');
+                    document.getElementById('guess-button').classList.remove('disabled');
                 }
 
                 if (gameData.result) {
                     document.getElementById('result').textContent = gameData.result;
                     document.getElementById('play-again').style.display = 'block';
-                    document.getElementById('guess-input').style.display = 'none';
-                    document.getElementById('guess-button').style.display = 'none';
+                    document.getElementById('guess-input').classList.add('disabled');
+                    document.getElementById('guess-button').classList.add('disabled');
                     if (!isCreator) {
                         document.getElementById('word-display').textContent = gameData.word.toUpperCase();
                     }
@@ -352,8 +355,8 @@
                 document.getElementById('hint').textContent = '';
                 document.getElementById('error-message').textContent = '';
                 drawHangman(0);
-                document.getElementById('guess-input').style.display = 'none';
-                document.getElementById('guess-button').style.display = 'none';
+                document.getElementById('guess-input').classList.add('disabled');
+                document.getElementById('guess-button').classList.add('disabled');
             }
         });
 
