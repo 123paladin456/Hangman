@@ -155,7 +155,8 @@
             document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой с другом: <a href="${roomLink}">${roomLink}</a>`;
             gamesRef.set({
                 creator: playerId,
-                status: 'waiting'
+                status: 'waiting',
+                guessedLetters: [] // Инициализация массива
             }).catch(error => {
                 document.getElementById('error-message').textContent = 'Ошибка настройки игры: ' + error.message;
             });
@@ -210,8 +211,8 @@
                 if (gameData.status === 'playing' && !isCreator) {
                     document.getElementById('status').textContent = 'Введите букву для угадывания!';
                     document.getElementById('hint').textContent = `Подсказка: ${gameData.hint}`;
-                    updateWordDisplay(gameData.word, gameData.guessedLetters);
-                    drawHangman(maxAttempts - gameData.attemptsLeft);
+                    updateWordDisplay(gameData.word, gameData.guessedLetters || []);
+                    drawHangman(maxAttempts - (gameData.attemptsLeft || maxAttempts));
                     document.getElementById('guess-input').classList.remove('disabled');
                     document.getElementById('guess-button').classList.remove('disabled');
                 }
@@ -232,7 +233,7 @@
 
         // Обновление отображения слова
         function updateWordDisplay(word, guessedLetters) {
-            const display = word.split('').map(letter => guessedLetters.includes(letter) ? letter.toUpperCase() : '_').join(' ');
+            const display = (word || '').split('').map(letter => (guessedLetters || []).includes(letter) ? letter.toUpperCase() : '_').join(' ');
             document.getElementById('word-display').textContent = display;
         }
 
@@ -262,12 +263,14 @@
         function guessLetter(letter) {
             gamesRef.transaction(game => {
                 if (!game || game.status !== 'playing') return;
+                // Инициализация guessedLetters как массива, если не определён
+                game.guessedLetters = game.guessedLetters || [];
                 if (!game.guessedLetters.includes(letter)) {
                     game.guessedLetters.push(letter);
                     if (!game.word.includes(letter)) {
-                        game.attemptsLeft--;
+                        game.attemptsLeft = (game.attemptsLeft || maxAttempts) - 1;
                     }
-                    if (game.attemptsLeft === 0) {
+                    if ((game.attemptsLeft || maxAttempts) <= 0) {
                         game.result = `Игра окончена! Слово было "${game.word.toUpperCase()}".`;
                         game.status = 'finished';
                     } else if (game.word.split('').every(l => game.guessedLetters.includes(l))) {
