@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Виселица - Многопользовательская</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        #game-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        #hangman-canvas {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+        }
+        #word-display {
+            font-size: 2em;
+            letter-spacing: 5px;
+            margin: 20px 0;
+        }
+        #hint {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        #keyboard {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .key {
+            padding: 10px;
+            background: #e0e0e0;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .key:hover {
+            background: #d0d0d0;
+        }
+        .key.disabled {
+            background: #aaa;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        #status {
+            font-size: 1.2em;
+            margin: 20px 0;
+            min-height: 24px;
+        }
+        #result {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 20px 0;
+            min-height: 30px;
+        }
+        #room-link {
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        #word-input, #hint-input {
+            padding: 10px;
+            margin: 5px;
+            width: 80%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #creator-section, #guesser-section {
+            margin: 20px 0;
+        }
+        #error-message {
+            color: red;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Виселица - Многопользовательская</h1>
+        <div id="status">Загрузка...</div>
+        <div id="error-message"></div>
+        <div id="creator-section" style="display: none;">
+            <p>Введите слово и подсказку для другого игрока:</p>
+            <input id="word-input" type="text" placeholder="Введите слово (только буквы)" pattern="[а-яА-Я]+" required>
+            <input id="hint-input" type="text" placeholder="Введите подсказку" required>
+            <button id="start-game">Начать игру</button>
+            <div id="room-link"></div>
+        </div>
+        <div id="guesser-section" style="display: none;">
+            <canvas id="hangman-canvas" width="200" height="200"></canvas>
+            <div id="hint"></div>
+            <div id="word-display"></div>
+            <div id="keyboard"></div>
+            <div id="result"></div>
+            <button id="play-again" style="display: none;">Играть снова</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script>
+        // Конфигурация Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDaGyqBWS4xcvPUU1CrdXjnkvz5H8lcC3U",
+            authDomain: "hangman-88fec.firebaseapp.com",
+            databaseURL: "https://hangman-88fec-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "hangman-88fec",
+            storageBucket: "hangman-88fec.firebasestorage.app",
+            messagingSenderId: "25397949414",
+            appId: "1:25397949414:web:8148cedeaa05484f771c27"
+        };
+
+        // Инициализация Firebase с обработкой ошибок
+        let app, db;
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch (error) {
+            document.getElementById('error-message').textContent = 'Ошибка инициализации Firebase: ' + error.message;
+            document.getElementById('status').textContent = 'Ошибка загрузки игры.';
+            console.error('Ошибка инициализации Firebase:', error);
+            document.getElementById('creator-section').style.display = 'none';
+            document.getElementById('guesser-section').style.display = 'none';
+        }
+
+        // Настройка игры
+        const urlParams = new URLSearchParams(window.location.search);
+        const gameId = urlParams.get('gameId') || Math.random().toString(36).substring(2, 15);
+        const playerId = Math.random().toString(36).substring(2, 15);
+        const gamesRef = db.ref('games/' + gameId);
+        let isCreator = !urlParams.get('gameId');
+        let maxAttempts = 6;
+
+        // Холст для рисования виселицы
+        const canvas = document.getElementById('hangman-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Инициализация игры
+        if (isCreator && db) {
+            document.getElementById('creator-section').style.display = 'block';
+            document.getElementById('status').textContent = 'Создайте игру, введя слово и подсказку.';
+            const roomLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
+            document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой с другом: <a href="${roomLink}">${roomLink}</a>`;
+            gamesRef.set({
+                creator: playerId,
+                status: 'waiting'
+            }).catch(error => {
+                document.getElementById('error-message').textContent = 'Ошибка настройки игры: ' + error.message;
+            });
+        } else if (db) {
+            document.getElementById('guesser-section').style.display = 'block';
+            document.getElementById('status').textContent = 'Ожидание, пока создатель задаст слово...';
+            gamesRef.update({
+                guesser: playerId
+            }).catch(error => {
+                document.getElementById('error-message').textContent = 'Ошибка присоединения к игре: ' + error.message;
+            });
+        }
+
+        // Создатель: Начать игру
+        document.getElementById('start-game').addEventListener('click', () => {
+            const wordInput = document.getElementById('word-input').value.trim().toLowerCase();
+            const hintInput = document.getElementById('hint-input').value.trim();
+            if (!/^[а-я]+$/.test(wordInput)) {
+                alert('Слово должно содержать только русские буквы.');
+                return;
+            }
+            if (!hintInput) {
+                alert('Пожалуйста, укажите подсказку.');
+                return;
+            }
+            gamesRef.update({
+                word: wordInput,
+                hint: hintInput,
+                guessedLetters: [],
+                attemptsLeft: maxAttempts,
+                status: 'playing'
+            }).then(() => {
+                document.getElementById('creator-section').style.display = 'none';
+                document.getElementById('guesser-section').style.display = 'block';
+                document.getElementById('status').textContent = 'Ожидание хода угадывающего...';
+            }).catch(error => {
+                document.getElementById('error-message').textContent = 'Ошибка начала игры: ' + error.message;
+            });
+        });
+
+        // Слушатель состояния игры
+        if (db) {
+            gamesRef.on('value', snapshot => {
+                const gameData = snapshot.val();
+                if (!gameData) {
+                    document.getElementById('error-message').textContent = 'Данные игры не найдены.';
+                    return;
+                }
+
+                if (gameData.status === 'playing' && !isCreator) {
+                    document.getElementById('status').textContent = 'Угадайте слово!';
+                    document.getElementById('hint').textContent = `Подсказка: ${gameData.hint}`;
+                    updateWordDisplay(gameData.word, gameData.guessedLetters);
+                    drawHangman(maxAttempts - gameData.attemptsLeft);
+                    createKeyboard(gameData.guessedLetters);
+                }
+
+                if (gameData.result) {
+                    document.getElementById('result').textContent = gameData.result;
+                    document.getElementById('play-again').style.display = 'block';
+                    document.getElementById('keyboard').style.pointerEvents = 'none';
+                    if (!isCreator) {
+                        document.getElementById('word-display').textContent = gameData.word.toUpperCase();
+                    }
+                }
+            }, error => {
+                document.getElementById('error-message').textContent = 'Ошибка получения данных игры: ' + error.message;
+            });
+        }
+
+        // Обновление отображения слова
+        function updateWordDisplay(word, guessedLetters) {
+            const display = word.split('').map(letter => guessedLetters.includes(letter) ? letter.toUpperCase() : '_').join(' ');
+            document.getElementById('word-display').textContent = display;
+        }
+
+        // Создание виртуальной клавиатуры
+        function createKeyboard(guessedLetters) {
+            const keyboard = document.getElementById('keyboard');
+            keyboard.innerHTML = '';
+            'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'.split('').forEach(letter => {
+                const key = document.createElement('div');
+                key.className = 'key';
+                key.textContent = letter.toUpperCase();
+                if (guessedLetters.includes(letter)) {
+                    key.className += ' disabled';
+                } else {
+                    key.addEventListener('click', () => guessLetter(letter));
+                }
+                keyboard.appendChild(key);
+            });
+        }
+
+        // Угадывание буквы
+        function guessLetter(letter) {
+            gamesRef.transaction(game => {
+                if (!game || game.status !== 'playing') return;
+                if (!game.guessedLetters.includes(letter)) {
+                    game.guessedLetters.push(letter);
+                    if (!game.word.includes(letter)) {
+                        game.attemptsLeft--;
+                    }
+                    if (game.attemptsLeft === 0) {
+                        game.result = `Игра окончена! Слово было "${game.word.toUpperCase()}".`;
+                        game.status = 'finished';
+                    } else if (game.word.split('').every(l => game.guessedLetters.includes(l))) {
+                        game.result = 'Поздравляем! Вы угадали слово!';
+                        game.status = 'finished';
+                    }
+                }
+                return game;
+            }).catch(error => {
+                document.getElementById('error-message').textContent = 'Ошибка при угадывании буквы: ' + error.message;
+            });
+        }
+
+        // Рисование виселицы
+        function drawHangman(errors) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#333';
+
+            // Основание
+            if (errors > 0) {
+                ctx.beginPath();
+                ctx.moveTo(20, 180);
+                ctx.lineTo(180, 180);
+                ctx.stroke();
+            }
+            // Столб
+            if (errors > 1) {
+                ctx.beginPath();
+                ctx.moveTo(50, 180);
+                ctx.lineTo(50, 20);
+                ctx.stroke();
+            }
+            // Перекладина
+            if (errors > 2) {
+                ctx.beginPath();
+                ctx.moveTo(50, 20);
+                ctx.lineTo(120, 20);
+                ctx.stroke();
+            }
+            // Верёвка
+            if (errors > 3) {
+                ctx.beginPath();
+                ctx.moveTo(120, 20);
+                ctx.lineTo(120, 40);
+                ctx.stroke();
+            }
+            // Голова
+            if (errors > 4) {
+                ctx.beginPath();
+                ctx.arc(120, 60, 20, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            // Туловище
+            if (errors > 5) {
+                ctx.beginPath();
+                ctx.moveTo(120, 80);
+                ctx.lineTo(120, 120);
+                ctx.stroke();
+            }
+        }
+
+        // Играть снова
+        document.getElementById('play-again').addEventListener('click', () => {
+            if (isCreator) {
+                document.getElementById('creator-section').style.display = 'block';
+                document.getElementById('guesser-section').style.display = 'none';
+                document.getElementById('status').textContent = 'Введите новое слово и подсказку.';
+                document.getElementById('error-message').textContent = '';
+                gamesRef.update({
+                    word: null,
+                    hint: null,
+                    guessedLetters: [],
+                    attemptsLeft: maxAttempts,
+                    result: null,
+                    status: 'waiting'
+                }).catch(error => {
+                    document.getElementById('error-message').textContent = 'Ошибка сброса игры: ' + error.message;
+                });
+            } else {
+                document.getElementById('status').textContent = 'Ожидание нового слова от создателя...';
+                document.getElementById('result').textContent = '';
+                document.getElementById('play-again').style.display = 'none';
+                document.getElementById('word-display').textContent = '';
+                document.getElementById('hint').textContent = '';
+                document.getElementById('keyboard').innerHTML = '';
+                document.getElementById('error-message').textContent = '';
+                drawHangman(0);
+            }
+        });
+
+        // Очистка при выходе
+        window.addEventListener('beforeunload', () => {
+            if (db) {
+                gamesRef.remove().catch(error => {
+                    console.error('Ошибка очистки:', error);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
