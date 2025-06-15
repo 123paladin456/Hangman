@@ -156,7 +156,8 @@
             gamesRef.set({
                 creator: playerId,
                 status: 'waiting',
-                guessedLetters: [] // Инициализация массива
+                guessedLetters: [],
+                attemptsLeft: maxAttempts // Устанавливаем начальное значение
             }).catch(error => {
                 document.getElementById('error-message').textContent = 'Ошибка настройки игры: ' + error.message;
             });
@@ -263,14 +264,16 @@
         function guessLetter(letter) {
             gamesRef.transaction(game => {
                 if (!game || game.status !== 'playing') return;
-                // Инициализация guessedLetters как массива, если не определён
                 game.guessedLetters = game.guessedLetters || [];
+                game.attemptsLeft = game.attemptsLeft || maxAttempts; // Убедимся, что attemptsLeft определён
+                console.log('Before guess - attemptsLeft:', game.attemptsLeft); // Отладка
                 if (!game.guessedLetters.includes(letter)) {
                     game.guessedLetters.push(letter);
                     if (!game.word.includes(letter)) {
-                        game.attemptsLeft = (game.attemptsLeft || maxAttempts) - 1;
+                        game.attemptsLeft--;
                     }
-                    if ((game.attemptsLeft || maxAttempts) <= 0) {
+                    console.log('After guess - attemptsLeft:', game.attemptsLeft); // Отладка
+                    if (game.attemptsLeft <= 0) {
                         game.result = `Игра окончена! Слово было "${game.word.toUpperCase()}".`;
                         game.status = 'finished';
                     } else if (game.word.split('').every(l => game.guessedLetters.includes(l))) {
