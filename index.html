@@ -94,7 +94,7 @@
             <button id="start-game">Начать игру</button>
             <div id="room-link"></div>
         </div>
-        <div id="guesser-section" style="display: none;">
+        <div id="guesser-section" style="display: block;"> <!-- Теперь всегда отображается -->
             <canvas id="hangman-canvas" width="200" height="200"></canvas>
             <div id="hint"></div>
             <div id="word-display"></div>
@@ -147,6 +147,7 @@
         // Инициализация игры
         if (isCreator && db) {
             document.getElementById('creator-section').style.display = 'block';
+            document.getElementById('guesser-section').style.display = 'none'; // Скрываем угадывающего
             document.getElementById('status').textContent = 'Создайте игру, введя слово и подсказку.';
             const roomLink = `${window.location.origin}${window.location.pathname}?gameId=${gameId}`;
             document.getElementById('room-link').innerHTML = `Поделитесь этой ссылкой с другом: <a href="${roomLink}">${roomLink}</a>`;
@@ -157,7 +158,8 @@
                 document.getElementById('error-message').textContent = 'Ошибка настройки игры: ' + error.message;
             });
         } else if (db) {
-            document.getElementById('guesser-section').style.display = 'block';
+            document.getElementById('creator-section').style.display = 'none'; // Скрываем создателя
+            document.getElementById('guesser-section').style.display = 'block'; // Показываем угадывающего
             document.getElementById('status').textContent = 'Ожидание слова от создателя...';
             gamesRef.update({
                 guesser: playerId
