@@ -37,31 +37,6 @@
             color: #666;
             margin-bottom: 20px;
         }
-        #keyboard {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-            max-width: 400px;
-            margin: 0 auto;
-            pointer-events: none; /* Заблокирована по умолчанию */
-        }
-        .key {
-            padding: 10px;
-            background: #e0e0e0;
-            border-radius: 5px;
-            cursor: pointer;
-            text-align: center;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        .key:hover {
-            background: #d0d0d0;
-        }
-        .key.disabled {
-            background: #aaa;
-            cursor: not-allowed;
-            pointer-events: none;
-        }
         #status {
             font-size: 1.2em;
             margin: 20px 0;
@@ -77,7 +52,7 @@
             margin: 20px 0;
             word-break: break-all;
         }
-        #word-input, #hint-input {
+        #word-input, #hint-input, #guess-input {
             padding: 10px;
             margin: 5px;
             width: 80%;
@@ -123,7 +98,8 @@
             <canvas id="hangman-canvas" width="200" height="200"></canvas>
             <div id="hint"></div>
             <div id="word-display"></div>
-            <div id="keyboard"></div>
+            <input id="guess-input" type="text" placeholder="Введите букву" maxlength="1" style="display: none;">
+            <button id="guess-button" style="display: none;">Угадать</button>
             <div id="result"></div>
             <button id="play-again" style="display: none;">Играть снова</button>
         </div>
@@ -188,8 +164,6 @@
             }).catch(error => {
                 document.getElementById('error-message').textContent = 'Ошибка присоединения к игре: ' + error.message;
             });
-            createKeyboard([]); // Показываем клавиатуру, но блокируем её
-            document.getElementById('keyboard').style.pointerEvents = 'none';
         }
 
         // Создатель: Начать игру
@@ -223,34 +197,31 @@
         if (db) {
             gamesRef.on('value', snapshot => {
                 const gameData = snapshot.val();
-                console.log('Game data:', gameData); // Для отладки
                 if (!gameData) {
                     document.getElementById('error-message').textContent = 'Данные игры не найдены.';
                     return;
                 }
 
                 if (gameData.status === 'playing' && !isCreator) {
-                    document.getElementById('status').textContent = 'Выберите букву для угадывания!';
+                    document.getElementById('status').textContent = 'Введите букву для угадывания!';
                     document.getElementById('hint').textContent = `Подсказка: ${gameData.hint}`;
                     updateWordDisplay(gameData.word, gameData.guessedLetters);
                     drawHangman(maxAttempts - gameData.attemptsLeft);
-                    createKeyboard(gameData.guessedLetters);
-                    const keyboard = document.getElementById('keyboard');
-                    keyboard.style.pointerEvents = 'auto'; // Активируем клавиатуру
-                    console.log('Keyboard activated'); // Для отладки
+                    document.getElementById('guess-input').style.display = 'block';
+                    document.getElementById('guess-button').style.display = 'block';
                 }
 
                 if (gameData.result) {
                     document.getElementById('result').textContent = gameData.result;
                     document.getElementById('play-again').style.display = 'block';
-                    document.getElementById('keyboard').style.pointerEvents = 'none';
+                    document.getElementById('guess-input').style.display = 'none';
+                    document.getElementById('guess-button').style.display = 'none';
                     if (!isCreator) {
                         document.getElementById('word-display').textContent = gameData.word.toUpperCase();
                     }
                 }
             }, error => {
                 document.getElementById('error-message').textContent = 'Ошибка получения данных игры: ' + error.message;
-                console.error('Firebase error:', error);
             });
         }
 
@@ -260,27 +231,29 @@
             document.getElementById('word-display').textContent = display;
         }
 
-        // Создание виртуальной клавиатуры
-        function createKeyboard(guessedLetters) {
-            const keyboard = document.getElementById('keyboard');
-            keyboard.innerHTML = '';
-            'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'.split('').forEach(letter => {
-                const key = document.createElement('div');
-                key.className = 'key';
-                key.textContent = letter.toUpperCase();
-                if (guessedLetters.includes(letter)) {
-                    key.className += ' disabled';
-                } else {
-                    key.addEventListener('click', () => {
-                        console.log('Clicked:', letter); // Для отладки
-                        guessLetter(letter);
-                    });
-                }
-                keyboard.appendChild(key);
-            });
-        }
-
         // Угадывание буквы
+        document.getElementById('guess-button').addEventListener('click', () => {
+            const guessInput = document.getElementById('guess-input').value.trim().toLowerCase();
+            if (/^[а-я]$/.test(guessInput)) {
+                guessLetter(guessInput);
+                document.getElementById('guess-input').value = ''; // Очищаем поле
+            } else {
+                alert('Пожалуйста, введите одну русскую букву.');
+            }
+        });
+
+        document.getElementById('guess-input').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                const guessInput = document.getElementById('guess-input').value.trim().toLowerCase();
+                if (/^[а-я]$/.test(guessInput)) {
+                    guessLetter(guessInput);
+                    document.getElementById('guess-input').value = ''; // Очищаем поле
+                } else {
+                    alert('Пожалуйста, введите одну русскую букву.');
+                }
+            }
+        });
+
         function guessLetter(letter) {
             gamesRef.transaction(game => {
                 if (!game || game.status !== 'playing') return;
@@ -300,7 +273,6 @@
                 return game;
             }).catch(error => {
                 document.getElementById('error-message').textContent = 'Ошибка при угадывании буквы: ' + error.message;
-                console.error('Transaction error:', error);
             });
         }
 
@@ -376,10 +348,10 @@
                 document.getElementById('play-again').style.display = 'none';
                 document.getElementById('word-display').textContent = '';
                 document.getElementById('hint').textContent = '';
-                document.getElementById('keyboard').innerHTML = '';
                 document.getElementById('error-message').textContent = '';
                 drawHangman(0);
-                document.getElementById('keyboard').style.pointerEvents = 'none';
+                document.getElementById('guess-input').style.display = 'none';
+                document.getElementById('guess-button').style.display = 'none';
             }
         });
 
